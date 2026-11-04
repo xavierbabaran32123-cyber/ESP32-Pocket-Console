@@ -30,6 +30,7 @@ data class ConsoleScreenUiState(
     val isFullscreen: Boolean = false,
     val soundMuted: Boolean = false,
     val showScannerSheet: Boolean = false,
+    val showQrDialog: Boolean = false,
     val permissionDeniedBanner: Boolean = false
 )
 
@@ -160,9 +161,21 @@ class ConsoleViewModel(application: Application) : AndroidViewModel(application)
         bleManager.connectToDevice(device)
     }
 
+    fun openQrDialog() {
+        _uiState.update { it.copy(showQrDialog = true) }
+    }
+
+    fun dismissQrDialog() {
+        _uiState.update { it.copy(showQrDialog = false) }
+    }
+
     fun handleBackGesture(): Boolean {
         if (_uiState.value.isFullscreen) {
             exitFullscreen()
+            return true
+        }
+        if (_uiState.value.showQrDialog) {
+            dismissQrDialog()
             return true
         }
         if (_uiState.value.showScannerSheet) {

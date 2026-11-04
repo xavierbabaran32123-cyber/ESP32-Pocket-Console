@@ -99,9 +99,19 @@ class ExampleRobolectricTest {
 
         composeTestRule.onNodeWithTag("console_stage_canvas").assertIsDisplayed()
         composeTestRule.onNodeWithTag("connect_button").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("qr_download_button").assertIsDisplayed()
         composeTestRule.onNodeWithTag("sound_toggle_button").assertIsDisplayed()
         composeTestRule.onNodeWithTag("fullscreen_toggle_button").assertIsDisplayed()
         composeTestRule.onAllNodesWithTag("local_mode_button").assertCountEquals(0)
+
+        // Verify QR download button opens scannable QR dialog
+        composeTestRule.onNodeWithTag("qr_download_button").performClick()
+        composeTestRule.mainClock.advanceTimeBy(100L)
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithTag("qr_code_canvas").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("qr_close_button").performClick()
+        composeTestRule.mainClock.advanceTimeBy(100L)
+        composeTestRule.waitForIdle()
 
         // Verify fullscreen toggle hides header and shows clean unobstructed canvas without minimize button
         composeTestRule.onNodeWithTag("fullscreen_toggle_button").performClick()

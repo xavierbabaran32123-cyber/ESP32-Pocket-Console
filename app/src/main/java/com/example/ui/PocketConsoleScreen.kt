@@ -39,6 +39,7 @@ import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.BluetoothConnected
 import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalIconButton
@@ -92,7 +93,7 @@ fun PocketConsoleScreen(
     }
 
     BackHandler(
-        enabled = uiState.isFullscreen || uiState.showScannerSheet
+        enabled = uiState.isFullscreen || uiState.showScannerSheet || uiState.showQrDialog
     ) {
         viewModel.handleBackGesture()
     }
@@ -158,6 +159,12 @@ fun PocketConsoleScreen(
         )
     }
 
+    if (uiState.showQrDialog) {
+        QrDownloadDialog(
+            onDismiss = viewModel::dismissQrDialog
+        )
+    }
+
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
@@ -182,6 +189,7 @@ fun PocketConsoleScreen(
                 LandscapeControlRail(
                     uiState = uiState,
                     onConnectClick = onConnectClick,
+                    onOpenQr = viewModel::openQrDialog,
                     onToggleSound = viewModel::toggleSoundMute,
                     onToggleFullscreen = viewModel::toggleFullscreen
                 )
@@ -205,6 +213,7 @@ fun PocketConsoleScreen(
                 TopConsoleHeader(
                     uiState = uiState,
                     onConnectClick = onConnectClick,
+                    onOpenQr = viewModel::openQrDialog,
                     onToggleSound = viewModel::toggleSoundMute,
                     onToggleFullscreen = viewModel::toggleFullscreen
                 )
@@ -272,6 +281,7 @@ private fun ConsoleViewportStage(
 private fun TopConsoleHeader(
     uiState: ConsoleScreenUiState,
     onConnectClick: () -> Unit,
+    onOpenQr: () -> Unit,
     onToggleSound: () -> Unit,
     onToggleFullscreen: () -> Unit
 ) {
@@ -284,9 +294,9 @@ private fun TopConsoleHeader(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+                .padding(horizontal = 10.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -304,6 +314,22 @@ private fun TopConsoleHeader(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.testTag("connection_status_text")
+                )
+            }
+
+            FilledTonalIconButton(
+                onClick = onOpenQr,
+                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.secondary
+                ),
+                modifier = Modifier
+                    .size(48.dp)
+                    .testTag("qr_download_button")
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.QrCode2,
+                    contentDescription = stringResource(R.string.cd_qr_download)
                 )
             }
 
@@ -357,7 +383,7 @@ private fun TopConsoleHeader(
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary
                 ),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
                 modifier = Modifier
                     .height(48.dp)
                     .testTag("connect_button")
@@ -386,6 +412,7 @@ private fun TopConsoleHeader(
 private fun LandscapeControlRail(
     uiState: ConsoleScreenUiState,
     onConnectClick: () -> Unit,
+    onOpenQr: () -> Unit,
     onToggleSound: () -> Unit,
     onToggleFullscreen: () -> Unit
 ) {
@@ -394,7 +421,7 @@ private fun LandscapeControlRail(
     Surface(
         color = MaterialTheme.colorScheme.surface,
         modifier = Modifier
-            .width(136.dp)
+            .width(156.dp)
             .fillMaxHeight()
     ) {
         Column(
@@ -441,6 +468,22 @@ private fun LandscapeControlRail(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 modifier = Modifier.fillMaxWidth()
             ) {
+                FilledTonalIconButton(
+                    onClick = onOpenQr,
+                    colors = IconButtonDefaults.filledTonalIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        contentColor = MaterialTheme.colorScheme.secondary
+                    ),
+                    modifier = Modifier
+                        .size(48.dp)
+                        .testTag("qr_download_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.QrCode2,
+                        contentDescription = stringResource(R.string.cd_qr_download)
+                    )
+                }
+
                 FilledTonalIconButton(
                     onClick = onToggleSound,
                     colors = IconButtonDefaults.filledTonalIconButtonColors(

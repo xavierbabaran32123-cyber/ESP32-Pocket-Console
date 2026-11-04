@@ -187,12 +187,16 @@ jobs:
 
           cat <<EOF > "$RUNNER_TEMP/release-notes.md"
           ### Download & Install on Android
+          <a href="https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/MaskMaze.apk">
+            <img src="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/docs/apk-download-qr.svg" alt="Scan QR code to download MaskMaze.apk" width="200" height="200" />
+          </a>
+
           - **Direct APK Download:** [**Download \`MaskMaze.apk\` (${APK_SIZE})**](https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/MaskMaze.apk)
           - **SHA-256:** \`${APK_SHA}\`
           - **Minimum Android Version:** Android 7.0+ (API 24)
           - **Commit:** \`${GITHUB_SHA}\`
 
-          > On your Android phone or tablet, open the downloaded \`MaskMaze.apk\` and allow installation from your browser or file manager if prompted.
+          > Scan the QR code above with your Android camera or tap the direct link, then open \`MaskMaze.apk\` to install.
           EOF
 
           if [[ "${GITHUB_REF}" == refs/tags/* ]]; then

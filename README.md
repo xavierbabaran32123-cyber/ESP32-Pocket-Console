@@ -7,13 +7,19 @@ Native Android Bluetooth LE companion display and real-time chiptune audio synth
 
 ---
 
-## Download & Install APK
+## Scan QR Code or Click to Download APK
 
-Every push to `main` / `master` (or any `v*` version tag) automatically builds and signs **`MaskMaze.apk`** via GitHub Actions and publishes it to **GitHub Releases**.
+Scan with your Android phone camera (or click the QR code) to directly download the latest signed **`MaskMaze.apk`**:
 
-### Direct One-Click Download
-- **[Download Latest `MaskMaze.apk`](https://github.com/xavierbabaran32123-cyber/ESP32-Pocket-Console/releases/latest/download/MaskMaze.apk)**
-- **[View All GitHub Releases](https://github.com/xavierbabaran32123-cyber/ESP32-Pocket-Console/releases)**
+<p align="left">
+  <a href="https://github.com/xavierbabaran32123-cyber/ESP32-Pocket-Console/releases/latest/download/MaskMaze.apk">
+    <img src="docs/apk-download-qr.svg" alt="Scan QR code to download MaskMaze.apk" width="220" height="220" />
+  </a>
+</p>
+
+- **Direct APK Link:** [**Download Latest `MaskMaze.apk`**](https://github.com/xavierbabaran32123-cyber/ESP32-Pocket-Console/releases/latest/download/MaskMaze.apk)
+- **Releases Page:** [**View All GitHub Releases**](https://github.com/xavierbabaran32123-cyber/ESP32-Pocket-Console/releases)
+- **In-App Share:** You can also tap the **QR Code** button in the top bar of the app at any time to display this scannable download QR code on screen.
 
 ### Alternative — GitHub Actions Build Artifacts
 1. Open the **[Actions](https://github.com/xavierbabaran32123-cyber/ESP32-Pocket-Console/actions/workflows/build-apk.yml)** tab in this repository.
