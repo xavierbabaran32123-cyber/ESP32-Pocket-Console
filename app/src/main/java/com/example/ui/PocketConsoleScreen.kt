@@ -11,10 +11,8 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -33,6 +31,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeOff
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
@@ -40,8 +39,6 @@ import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.BluetoothConnected
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
-import androidx.compose.material.icons.filled.SportsEsports
-import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalIconButton
@@ -49,7 +46,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
@@ -66,9 +62,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.nativeCanvas
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -82,7 +76,6 @@ import com.example.ble.BleConnectionStatus
 import com.example.ble.BleConsoleManager
 import com.example.game.render.ConsoleCanvasRenderer
 import com.example.ui.theme.ConsoleOk
-import kotlin.math.abs
 import kotlinx.coroutines.isActive
 
 @Composable
@@ -98,7 +91,7 @@ fun PocketConsoleScreen(
     }
 
     BackHandler(
-        enabled = uiState.isFullscreen || uiState.showScannerSheet || uiState.isLocalMode
+        enabled = uiState.isFullscreen || uiState.showScannerSheet
     ) {
         viewModel.handleBackGesture()
     }
@@ -106,7 +99,9 @@ fun PocketConsoleScreen(
     val enableBtLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        viewModel.onBluetoothEnabledResult(result.resultCode == Activity.RESULT_OK || viewModel.bleManager.isBluetoothEnabled())
+        viewModel.onBluetoothEnabledResult(
+            result.resultCode == Activity.RESULT_OK || viewModel.bleManager.isBluetoothEnabled()
+        )
     }
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -174,12 +169,6 @@ fun PocketConsoleScreen(
             Box(modifier = Modifier.fillMaxSize()) {
                 ConsoleViewportStage(
                     renderer = renderer,
-                    isLocalMode = uiState.isLocalMode,
-                    showGamepad = uiState.showGamepadInLocal,
-                    isLandscape = isLandscape,
-                    onSwipeDir = viewModel::onStageSwipe,
-                    onButtonPress = viewModel::onGamepadPress,
-                    onButtonRelease = viewModel::onGamepadRelease,
                     modifier = Modifier.fillMaxSize()
                 )
                 FilledTonalIconButton(
@@ -210,10 +199,8 @@ fun PocketConsoleScreen(
                 LandscapeControlRail(
                     uiState = uiState,
                     onConnectClick = onConnectClick,
-                    onToggleLocal = viewModel::toggleLocalMode,
                     onToggleSound = viewModel::toggleSoundMute,
-                    onToggleFullscreen = viewModel::toggleFullscreen,
-                    onToggleGamepad = viewModel::toggleGamepadVisibility
+                    onToggleFullscreen = viewModel::toggleFullscreen
                 )
                 VerticalDivider(
                     thickness = 1.dp,
@@ -221,12 +208,6 @@ fun PocketConsoleScreen(
                 )
                 ConsoleViewportStage(
                     renderer = renderer,
-                    isLocalMode = uiState.isLocalMode,
-                    showGamepad = uiState.showGamepadInLocal,
-                    isLandscape = true,
-                    onSwipeDir = viewModel::onStageSwipe,
-                    onButtonPress = viewModel::onGamepadPress,
-                    onButtonRelease = viewModel::onGamepadRelease,
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
@@ -241,10 +222,8 @@ fun PocketConsoleScreen(
                 TopConsoleHeader(
                     uiState = uiState,
                     onConnectClick = onConnectClick,
-                    onToggleLocal = viewModel::toggleLocalMode,
                     onToggleSound = viewModel::toggleSoundMute,
-                    onToggleFullscreen = viewModel::toggleFullscreen,
-                    onToggleGamepad = viewModel::toggleGamepadVisibility
+                    onToggleFullscreen = viewModel::toggleFullscreen
                 )
                 HorizontalDivider(
                     thickness = 1.dp,
@@ -252,12 +231,6 @@ fun PocketConsoleScreen(
                 )
                 ConsoleViewportStage(
                     renderer = renderer,
-                    isLocalMode = uiState.isLocalMode,
-                    showGamepad = uiState.showGamepadInLocal,
-                    isLandscape = isLandscape,
-                    onSwipeDir = viewModel::onStageSwipe,
-                    onButtonPress = viewModel::onGamepadPress,
-                    onButtonRelease = viewModel::onGamepadRelease,
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth()
@@ -271,17 +244,9 @@ fun PocketConsoleScreen(
 @Composable
 private fun ConsoleViewportStage(
     renderer: ConsoleCanvasRenderer,
-    isLocalMode: Boolean,
-    showGamepad: Boolean,
-    isLandscape: Boolean,
-    onSwipeDir: (Int) -> Unit,
-    onButtonPress: (com.example.game.local.ConsoleButton) -> Unit,
-    onButtonRelease: (com.example.game.local.ConsoleButton) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var frameNowMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    val density = LocalDensity.current
-    val swipeThresholdPx = remember(density) { with(density) { 24.dp.toPx() } }
 
     LaunchedEffect(Unit) {
         while (isActive) {
@@ -299,35 +264,6 @@ private fun ConsoleViewportStage(
             modifier = Modifier
                 .fillMaxSize()
                 .testTag("console_stage_canvas")
-                .pointerInput(isLocalMode, swipeThresholdPx) {
-                    if (!isLocalMode) return@pointerInput
-                    var dragX = 0f
-                    var dragY = 0f
-                    var firedInGesture = false
-                    detectDragGestures(
-                        onDragStart = {
-                            dragX = 0f
-                            dragY = 0f
-                            firedInGesture = false
-                        },
-                        onDrag = { change, dragAmount ->
-                            change.consume()
-                            if (!firedInGesture) {
-                                dragX += dragAmount.x
-                                dragY += dragAmount.y
-                                if (abs(dragX) >= swipeThresholdPx || abs(dragY) >= swipeThresholdPx) {
-                                    firedInGesture = true
-                                    val dir = if (abs(dragX) > abs(dragY)) {
-                                        if (dragX > 0f) 1 else 3
-                                    } else {
-                                        if (dragY < 0f) 0 else 2
-                                    }
-                                    onSwipeDir(dir)
-                                }
-                            }
-                        }
-                    )
-                }
         ) {
             val tickNow = frameNowMs
             renderer.renderFrame(
@@ -337,15 +273,6 @@ private fun ConsoleViewportStage(
                 nowMs = tickNow
             )
         }
-
-        if (isLocalMode && showGamepad) {
-            VirtualGamepadOverlay(
-                isLandscape = isLandscape,
-                onButtonPress = onButtonPress,
-                onButtonRelease = onButtonRelease,
-                modifier = Modifier.align(Alignment.BottomCenter)
-            )
-        }
     }
 }
 
@@ -353,10 +280,8 @@ private fun ConsoleViewportStage(
 private fun TopConsoleHeader(
     uiState: ConsoleScreenUiState,
     onConnectClick: () -> Unit,
-    onToggleLocal: () -> Unit,
     onToggleSound: () -> Unit,
-    onToggleFullscreen: () -> Unit,
-    onToggleGamepad: () -> Unit
+    onToggleFullscreen: () -> Unit
 ) {
     val statusInfo = rememberStatusPresentation(uiState)
 
@@ -364,188 +289,102 @@ private fun TopConsoleHeader(
         color = MaterialTheme.colorScheme.surface,
         modifier = Modifier.fillMaxWidth()
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.weight(1f)
             ) {
-                // Status indicator LED + label
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    StatusLedDot(
-                        color = statusInfo.dotColor,
-                        pulsing = statusInfo.pulsing
-                    )
-                    Text(
-                        text = statusInfo.statusText,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.testTag("connection_status_text")
-                    )
-                }
-
-                // Utility icon buttons (Gamepad toggle, Sound, Fullscreen)
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    if (uiState.isLocalMode) {
-                        FilledTonalIconButton(
-                            onClick = onToggleGamepad,
-                            colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                                contentColor = if (uiState.showGamepadInLocal) {
-                                    MaterialTheme.colorScheme.secondary
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                }
-                            ),
-                            modifier = Modifier
-                                .size(48.dp)
-                                .testTag("gamepad_toggle_button")
-                        ) {
-                            Icon(
-                                imageVector = if (uiState.showGamepadInLocal) {
-                                    Icons.Filled.SportsEsports
-                                } else {
-                                    Icons.Outlined.SportsEsports
-                                },
-                                contentDescription = stringResource(R.string.cd_controls_toggle)
-                            )
-                        }
-                    }
-
-                    FilledTonalIconButton(
-                        onClick = onToggleSound,
-                        colors = IconButtonDefaults.filledTonalIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                            contentColor = if (uiState.soundMuted) {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            } else {
-                                MaterialTheme.colorScheme.tertiary
-                            }
-                        ),
-                        modifier = Modifier
-                            .size(48.dp)
-                            .testTag("sound_toggle_button")
-                    ) {
-                        Icon(
-                            imageVector = if (uiState.soundMuted) {
-                                Icons.AutoMirrored.Filled.VolumeOff
-                            } else {
-                                Icons.AutoMirrored.Filled.VolumeUp
-                            },
-                            contentDescription = stringResource(
-                                if (uiState.soundMuted) R.string.cd_sound_off else R.string.cd_sound_on
-                            )
-                        )
-                    }
-
-                    FilledTonalIconButton(
-                        onClick = onToggleFullscreen,
-                        colors = IconButtonDefaults.filledTonalIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                            contentColor = MaterialTheme.colorScheme.onSurface
-                        ),
-                        modifier = Modifier
-                            .size(48.dp)
-                            .testTag("fullscreen_toggle_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Fullscreen,
-                            contentDescription = stringResource(R.string.cd_fullscreen_enter)
-                        )
-                    }
-                }
+                StatusLedDot(
+                    color = statusInfo.dotColor,
+                    pulsing = statusInfo.pulsing
+                )
+                Text(
+                    text = statusInfo.statusText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.testTag("connection_status_text")
+                )
             }
 
-            // Primary mode & BLE Connect row
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically
+            FilledTonalIconButton(
+                onClick = onToggleSound,
+                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = if (uiState.soundMuted) {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    } else {
+                        MaterialTheme.colorScheme.tertiary
+                    }
+                ),
+                modifier = Modifier
+                    .size(48.dp)
+                    .testTag("sound_toggle_button")
             ) {
-                OutlinedButton(
-                    onClick = onToggleLocal,
-                    border = BorderStroke(
-                        width = 1.dp,
-                        color = if (uiState.isLocalMode) {
-                            MaterialTheme.colorScheme.secondary
-                        } else {
-                            MaterialTheme.colorScheme.outline
-                        }
-                    ),
-                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(48.dp)
-                        .testTag("local_mode_button")
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.SportsEsports,
-                        contentDescription = null,
-                        tint = if (uiState.isLocalMode) {
-                            MaterialTheme.colorScheme.secondary
-                        } else {
-                            MaterialTheme.colorScheme.onSurface
-                        },
-                        modifier = Modifier.size(18.dp)
+                Icon(
+                    imageVector = if (uiState.soundMuted) {
+                        Icons.AutoMirrored.Filled.VolumeOff
+                    } else {
+                        Icons.AutoMirrored.Filled.VolumeUp
+                    },
+                    contentDescription = stringResource(
+                        if (uiState.soundMuted) R.string.cd_sound_off else R.string.cd_sound_on
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = stringResource(
-                            if (uiState.isLocalMode) R.string.btn_exit_local else R.string.btn_play_local
-                        ),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = if (uiState.isLocalMode) {
-                            MaterialTheme.colorScheme.secondary
-                        } else {
-                            MaterialTheme.colorScheme.onSurface
-                        },
-                        maxLines = 1
-                    )
-                }
+                )
+            }
 
-                Button(
-                    onClick = onConnectClick,
-                    enabled = uiState.bleState.status !is BleConnectionStatus.Unavailable,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
-                    ),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(48.dp)
-                        .testTag("connect_button")
-                ) {
-                    Icon(
-                        imageVector = if (uiState.bleState.status is BleConnectionStatus.Connected) {
-                            Icons.Filled.BluetoothConnected
-                        } else {
-                            Icons.Filled.Bluetooth
-                        },
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = statusInfo.connectButtonLabel,
-                        style = MaterialTheme.typography.labelLarge,
-                        maxLines = 1
-                    )
-                }
+            FilledTonalIconButton(
+                onClick = onToggleFullscreen,
+                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.onSurface
+                ),
+                modifier = Modifier
+                    .size(48.dp)
+                    .testTag("fullscreen_toggle_button")
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Fullscreen,
+                    contentDescription = stringResource(R.string.cd_fullscreen_enter)
+                )
+            }
+
+            Button(
+                onClick = onConnectClick,
+                enabled = uiState.bleState.status !is BleConnectionStatus.Unavailable,
+                shape = RoundedCornerShape(999.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                ),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+                modifier = Modifier
+                    .height(48.dp)
+                    .testTag("connect_button")
+            ) {
+                Icon(
+                    imageVector = if (uiState.bleState.status is BleConnectionStatus.Connected) {
+                        Icons.Filled.BluetoothConnected
+                    } else {
+                        Icons.Filled.Bluetooth
+                    },
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = statusInfo.connectButtonLabel,
+                    style = MaterialTheme.typography.labelLarge,
+                    maxLines = 1
+                )
             }
         }
     }
@@ -555,17 +394,15 @@ private fun TopConsoleHeader(
 private fun LandscapeControlRail(
     uiState: ConsoleScreenUiState,
     onConnectClick: () -> Unit,
-    onToggleLocal: () -> Unit,
     onToggleSound: () -> Unit,
-    onToggleFullscreen: () -> Unit,
-    onToggleGamepad: () -> Unit
+    onToggleFullscreen: () -> Unit
 ) {
     val statusInfo = rememberStatusPresentation(uiState)
 
     Surface(
         color = MaterialTheme.colorScheme.surface,
         modifier = Modifier
-            .width(126.dp)
+            .width(136.dp)
             .fillMaxHeight()
     ) {
         Column(
@@ -585,93 +422,65 @@ private fun LandscapeControlRail(
                     text = statusInfo.statusText,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.testTag("connection_status_text")
                 )
             }
 
-            Column(
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.fillMaxWidth()
+            Button(
+                onClick = onConnectClick,
+                enabled = uiState.bleState.status !is BleConnectionStatus.Unavailable,
+                shape = RoundedCornerShape(999.dp),
+                contentPadding = PaddingValues(horizontal = 10.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .testTag("connect_button")
             ) {
-                Button(
-                    onClick = onConnectClick,
-                    enabled = uiState.bleState.status !is BleConnectionStatus.Unavailable,
-                    contentPadding = PaddingValues(horizontal = 8.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp)
-                        .testTag("connect_button")
-                ) {
-                    Text(
-                        text = statusInfo.connectButtonLabel,
-                        style = MaterialTheme.typography.labelLarge,
-                        maxLines = 1
-                    )
-                }
-
-                OutlinedButton(
-                    onClick = onToggleLocal,
-                    contentPadding = PaddingValues(horizontal = 8.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp)
-                        .testTag("local_mode_button")
-                ) {
-                    Text(
-                        text = stringResource(
-                            if (uiState.isLocalMode) R.string.btn_exit_local else R.string.btn_play_local
-                        ),
-                        style = MaterialTheme.typography.labelLarge,
-                        maxLines = 1
-                    )
-                }
+                Text(
+                    text = statusInfo.connectButtonLabel,
+                    style = MaterialTheme.typography.labelLarge,
+                    maxLines = 1
+                )
             }
 
             Row(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                if (uiState.isLocalMode) {
-                    FilledTonalIconButton(
-                        onClick = onToggleGamepad,
-                        modifier = Modifier
-                            .size(48.dp)
-                            .testTag("gamepad_toggle_button")
-                    ) {
-                        Icon(
-                            imageVector = if (uiState.showGamepadInLocal) {
-                                Icons.Filled.SportsEsports
-                            } else {
-                                Icons.Outlined.SportsEsports
-                            },
-                            contentDescription = stringResource(R.string.cd_controls_toggle)
+                FilledTonalIconButton(
+                    onClick = onToggleSound,
+                    colors = IconButtonDefaults.filledTonalIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        contentColor = if (uiState.soundMuted) {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        } else {
+                            MaterialTheme.colorScheme.tertiary
+                        }
+                    ),
+                    modifier = Modifier
+                        .size(48.dp)
+                        .testTag("sound_toggle_button")
+                ) {
+                    Icon(
+                        imageVector = if (uiState.soundMuted) {
+                            Icons.AutoMirrored.Filled.VolumeOff
+                        } else {
+                            Icons.AutoMirrored.Filled.VolumeUp
+                        },
+                        contentDescription = stringResource(
+                            if (uiState.soundMuted) R.string.cd_sound_off else R.string.cd_sound_on
                         )
-                    }
-                } else {
-                    FilledTonalIconButton(
-                        onClick = onToggleSound,
-                        modifier = Modifier
-                            .size(48.dp)
-                            .testTag("sound_toggle_button")
-                    ) {
-                        Icon(
-                            imageVector = if (uiState.soundMuted) {
-                                Icons.AutoMirrored.Filled.VolumeOff
-                            } else {
-                                Icons.AutoMirrored.Filled.VolumeUp
-                            },
-                            contentDescription = stringResource(
-                                if (uiState.soundMuted) R.string.cd_sound_off else R.string.cd_sound_on
-                            )
-                        )
-                    }
+                    )
                 }
 
                 FilledTonalIconButton(
                     onClick = onToggleFullscreen,
+                    colors = IconButtonDefaults.filledTonalIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        contentColor = MaterialTheme.colorScheme.onSurface
+                    ),
                     modifier = Modifier
                         .size(48.dp)
                         .testTag("fullscreen_toggle_button")
@@ -690,7 +499,6 @@ private fun LandscapeControlRail(
 private fun ConsoleFooterHint(uiState: ConsoleScreenUiState) {
     val hintText = when {
         uiState.permissionDeniedBanner -> stringResource(R.string.hint_ble_permission_denied)
-        uiState.isLocalMode -> stringResource(R.string.hint_local_playing)
         uiState.bleState.status is BleConnectionStatus.Connected -> stringResource(R.string.hint_ble_connected)
         uiState.bleState.status is BleConnectionStatus.Unavailable -> stringResource(R.string.hint_ble_unavailable)
         else -> stringResource(R.string.hint_ble_idle)
@@ -744,25 +552,17 @@ private data class StatusPresentation(
 
 @Composable
 private fun rememberStatusPresentation(uiState: ConsoleScreenUiState): StatusPresentation {
-    if (uiState.isLocalMode) {
-        return StatusPresentation(
-            statusText = stringResource(R.string.status_local_mode),
-            connectButtonLabel = stringResource(R.string.btn_connect),
-            dotColor = ConsoleOk,
-            pulsing = false
-        )
-    }
     return when (val st = uiState.bleState.status) {
         is BleConnectionStatus.Idle -> StatusPresentation(
             statusText = stringResource(R.string.status_not_connected),
             connectButtonLabel = stringResource(R.string.btn_connect),
-            dotColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            dotColor = MaterialTheme.colorScheme.error,
             pulsing = false
         )
         is BleConnectionStatus.Disconnected -> StatusPresentation(
             statusText = stringResource(R.string.status_disconnected),
             connectButtonLabel = stringResource(R.string.btn_connect),
-            dotColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            dotColor = MaterialTheme.colorScheme.error,
             pulsing = false
         )
         is BleConnectionStatus.Scanning -> StatusPresentation(

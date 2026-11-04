@@ -3,8 +3,10 @@ package com.example
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
@@ -85,7 +87,7 @@ class ExampleRobolectricTest {
     }
 
     @Test
-    fun pocketConsoleScreenDisplaysControlsAndEntersLocalMode() {
+    fun pocketConsoleScreenDisplaysBleCompanionControlsWithoutLocalMode() {
         composeTestRule.mainClock.autoAdvance = false
         composeTestRule.setContent {
             MaskMazeTheme {
@@ -97,15 +99,14 @@ class ExampleRobolectricTest {
 
         composeTestRule.onNodeWithTag("console_stage_canvas").assertIsDisplayed()
         composeTestRule.onNodeWithTag("connect_button").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("local_mode_button").assertIsDisplayed()
         composeTestRule.onNodeWithTag("sound_toggle_button").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("fullscreen_toggle_button").assertIsDisplayed()
+        composeTestRule.onAllNodesWithTag("local_mode_button").assertCountEquals(0)
 
-        // Tap Play Local and verify virtual gamepad appears
-        composeTestRule.onNodeWithTag("local_mode_button").performClick()
+        // Verify fullscreen toggle enters and exits fullscreen cleanly
+        composeTestRule.onNodeWithTag("fullscreen_toggle_button").performClick()
         composeTestRule.mainClock.advanceTimeBy(100L)
         composeTestRule.waitForIdle()
-
-        composeTestRule.onNodeWithTag("dpad_up_button").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("action_a_button").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("fullscreen_exit_fab").assertIsDisplayed()
     }
 }

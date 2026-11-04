@@ -1,21 +1,11 @@
 package com.example
 
 import com.example.audio.SoundPlayer
-import com.example.data.ConsoleSavedPrefs
 import com.example.game.data.ArcadeAssetsData
 import com.example.game.data.HeroSpritesData
 import com.example.game.data.LevelsData
-import com.example.game.local.ConsoleButton
-import com.example.game.local.LocalBlocksEngine
-import com.example.game.local.LocalConsoleSimulator
-import com.example.game.local.LocalDotMazeEngine
-import com.example.game.local.LocalJetFighterEngine
 import com.example.game.state.ConsoleEngineState
 import com.example.game.state.PacketProcessor
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.TestScope
-import kotlinx.coroutines.test.advanceTimeBy
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -109,10 +99,23 @@ class ExampleUnitTest {
     }
 
     @Test
-    fun packetProcessorDecodesEndlessAndArcadePackets() {
+    fun packetProcessorDecodesEndlessMenuAndArcadePackets() {
         val state = ConsoleEngineState()
         val sound = FakeSoundPlayer()
         val processor = PacketProcessor(state, sound)
+
+        // Menu 'N' (78)
+        val nPkt = ByteArray(14)
+        nPkt[0] = 78
+        nPkt[1] = 0 // Title menu
+        nPkt[2] = 2 // cursor on MASKS
+        nPkt[3] = 5 // mask 5
+        nPkt[4] = 6 // musicOn + sfxOn
+        nPkt[5] = 12 // unlocked = 12
+        processor.onPacket(nPkt, nowMs = 1100L)
+        assertEquals(2, state.menu.sel)
+        assertEquals(5, state.menu.mask)
+        assertEquals(12, state.menu.unl)
 
         // Endless Row 'R' (82)
         val rPkt = ByteArray(19)
@@ -144,57 +147,5 @@ class ExampleUnitTest {
 
         val cells = ArcadeAssetsData.tbCells(2, 1)
         assertEquals(4, cells.size)
-    }
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    @Test
-    fun localConsoleSimulatorNavigatesStartTitleAndStageAndArcade() {
-        val dispatcher = StandardTestDispatcher()
-        val testScope = TestScope(dispatcher)
-        val state = ConsoleEngineState()
-        val sound = FakeSoundPlayer()
-        val processor = PacketProcessor(state, sound)
-        var lastSaved: ConsoleSavedPrefs? = null
-
-        val simulator = LocalConsoleSimulator(
-            scope = testScope,
-            emitPacket = { bytes -> processor.onPacket(bytes, nowMs = 5000L) },
-            onPersistSave = { lastSaved = it }
-        )
-
-        simulator.start()
-        assertEquals(10, state.p?.st) // Starts at Start Screen (10)
-
-        // Press A -> Title Menu (0)
-        simulator.onButtonPress(ConsoleButton.A)
-        simulator.onButtonRelease(ConsoleButton.A)
-        assertEquals(0, state.p?.st)
-
-        // Press A on NEW GAME -> Stage 0 (st = 1, inLevel = true)
-        simulator.onButtonPress(ConsoleButton.A)
-        simulator.onButtonRelease(ConsoleButton.A)
-        assertEquals(1, state.p?.st)
-        assertEquals(0, state.p?.lvl)
-        assertTrue((state.p!!.f and 1) != 0)
-        assertNotNull(lastSaved)
-
-        testScope.advanceTimeBy(100L)
-        simulator.stop()
-
-        // Verify Arcade engines emit valid binary packets into PacketProcessor
-        val jet = LocalJetFighterEngine()
-        jet.reset(100)
-        jet.step(30f, setOf(ConsoleButton.A)) { processor.onPacket(it, 6000L) }
-        assertEquals(100L, state.jet.hi)
-
-        val dot = LocalDotMazeEngine()
-        dot.reset(200, 1)
-        dot.step(30f, setOf(ConsoleButton.LEFT)) { processor.onPacket(it, 6100L) }
-        assertEquals(1, state.dotMaze.mask)
-
-        val blocks = LocalBlocksEngine()
-        blocks.reset(300)
-        blocks.step(30f, emptySet()) { processor.onPacket(it, 6200L) }
-        assertEquals(300, state.blocks.hi)
     }
 }

@@ -10,8 +10,6 @@ import com.example.ble.BleConsoleManager
 import com.example.ble.BleUiState
 import com.example.ble.ScannedBleDevice
 import com.example.data.ConsolePreferencesRepository
-import com.example.game.local.ConsoleButton
-import com.example.game.local.LocalConsoleSimulator
 import com.example.game.state.ConsoleEngineState
 import com.example.game.state.PacketProcessor
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,10 +27,8 @@ enum class ConnectClickAction {
 
 data class ConsoleScreenUiState(
     val bleState: BleUiState = BleUiState(),
-    val isLocalMode: Boolean = false,
     val isFullscreen: Boolean = false,
     val soundMuted: Boolean = false,
-    val showGamepadInLocal: Boolean = true,
     val showScannerSheet: Boolean = false,
     val permissionDeniedBanner: Boolean = false
 )
@@ -52,30 +48,12 @@ class ConsoleViewModel(application: Application) : AndroidViewModel(application)
         context = application.applicationContext,
         scope = viewModelScope,
         onPacketReceived = { bytes ->
-            if (!_uiState.value.isLocalMode) {
-                packetProcessor.onPacket(bytes)
-            }
+            packetProcessor.onPacket(bytes)
         },
         onSignalLost = {
-            if (!_uiState.value.isLocalMode) {
-                engineState.resetSignal()
-                soundEngine.wantTrack = -1
-                soundEngine.setRumble(0f)
-            }
-        }
-    )
-
-    private val localSimulator = LocalConsoleSimulator(
-        scope = viewModelScope,
-        emitPacket = { bytes ->
-            if (_uiState.value.isLocalMode) {
-                packetProcessor.onPacket(bytes)
-            }
-        },
-        onPersistSave = { updatedSave ->
-            viewModelScope.launch {
-                prefsRepo.saveLocalProgress(updatedSave)
-            }
+            engineState.resetSignal()
+            soundEngine.wantTrack = -1
+            soundEngine.setRumble(0f)
         }
     )
 
@@ -90,19 +68,11 @@ class ConsoleViewModel(application: Application) : AndroidViewModel(application)
                 soundEngine.mute = saved.soundMuted
                 soundEngine.musicOn = saved.musicOn
                 soundEngine.sfxOn = saved.sfxOn
-                localSimulator.syncPrefs(saved)
                 _uiState.update {
-                    it.copy(
-                        soundMuted = saved.soundMuted,
-                        showGamepadInLocal = saved.showGamepadInLocal
-                    )
+                    it.copy(soundMuted = saved.soundMuted)
                 }
             }
         }
-    }
-
-    fun ensureAudioStarted() {
-        soundEngine.ensureStarted()
     }
 
     fun toggleSoundMute() {
@@ -123,49 +93,8 @@ class ConsoleViewModel(application: Application) : AndroidViewModel(application)
         _uiState.update { it.copy(isFullscreen = false) }
     }
 
-    fun toggleGamepadVisibility() {
-        val next = !_uiState.value.showGamepadInLocal
-        _uiState.update { it.copy(showGamepadInLocal = next) }
-        viewModelScope.launch {
-            prefsRepo.setShowGamepad(next)
-        }
-    }
-
-    fun enterLocalMode() {
-        soundEngine.ensureStarted()
-        bleManager.disconnect()
-        engineState.resetSignal()
-        _uiState.update {
-            it.copy(
-                isLocalMode = true,
-                showScannerSheet = false,
-                permissionDeniedBanner = false
-            )
-        }
-        localSimulator.start()
-    }
-
-    fun exitLocalMode() {
-        localSimulator.stop()
-        engineState.resetSignal()
-        soundEngine.wantTrack = -1
-        soundEngine.setRumble(0f)
-        _uiState.update { it.copy(isLocalMode = false) }
-    }
-
-    fun toggleLocalMode() {
-        if (_uiState.value.isLocalMode) {
-            exitLocalMode()
-        } else {
-            enterLocalMode()
-        }
-    }
-
     fun onConnectButtonClicked(): ConnectClickAction {
         soundEngine.ensureStarted()
-        if (_uiState.value.isLocalMode) {
-            exitLocalMode()
-        }
 
         val currentStatus = bleManager.uiState.value.status
         if (currentStatus is BleConnectionStatus.Connected ||
@@ -196,7 +125,7 @@ class ConsoleViewModel(application: Application) : AndroidViewModel(application)
         _uiState.update { it.copy(permissionDeniedBanner = !granted) }
         if (!granted) return false
         if (!bleManager.isBluetoothEnabled()) {
-            return true // Caller should launch ACTION_REQUEST_ENABLE
+            return true
         }
         _uiState.update { it.copy(showScannerSheet = true) }
         bleManager.startScan()
@@ -227,27 +156,8 @@ class ConsoleViewModel(application: Application) : AndroidViewModel(application)
 
     fun selectBleDevice(device: ScannedBleDevice) {
         soundEngine.ensureStarted()
-        if (_uiState.value.isLocalMode) {
-            exitLocalMode()
-        }
         _uiState.update { it.copy(showScannerSheet = false) }
         bleManager.connectToDevice(device)
-    }
-
-    fun onGamepadPress(button: ConsoleButton) {
-        soundEngine.ensureStarted()
-        localSimulator.onButtonPress(button)
-    }
-
-    fun onGamepadRelease(button: ConsoleButton) {
-        localSimulator.onButtonRelease(button)
-    }
-
-    fun onStageSwipe(dir: Int) {
-        if (_uiState.value.isLocalMode) {
-            soundEngine.ensureStarted()
-            localSimulator.onSwipeDirection(dir)
-        }
     }
 
     fun handleBackGesture(): Boolean {
@@ -259,18 +169,11 @@ class ConsoleViewModel(application: Application) : AndroidViewModel(application)
             dismissScannerSheet()
             return true
         }
-        if (_uiState.value.isLocalMode) {
-            if (!localSimulator.onNavigateBack()) {
-                exitLocalMode()
-            }
-            return true
-        }
         return false
     }
 
     override fun onCleared() {
         super.onCleared()
-        localSimulator.stop()
         bleManager.release()
         soundEngine.release()
     }

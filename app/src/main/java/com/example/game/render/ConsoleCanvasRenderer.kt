@@ -148,7 +148,7 @@ class ConsoleCanvasRenderer(
         prim.txtS(c, cw, "NO SIGNAL", cw / 2f, ch * 0.57f, 0xFFFFE600.toInt(), max(16f, u / 10f), Paint.Align.CENTER)
         prim.txt(
             c,
-            "Connect ESP32 or tap Play Local",
+            "Connect to see the game",
             cw / 2f,
             ch * 0.65f,
             0xFFC8B8FF.toInt(),
