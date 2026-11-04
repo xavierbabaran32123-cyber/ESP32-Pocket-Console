@@ -103,10 +103,12 @@ class ExampleRobolectricTest {
         composeTestRule.onNodeWithTag("fullscreen_toggle_button").assertIsDisplayed()
         composeTestRule.onAllNodesWithTag("local_mode_button").assertCountEquals(0)
 
-        // Verify fullscreen toggle enters and exits fullscreen cleanly
+        // Verify fullscreen toggle hides header and shows clean unobstructed canvas without minimize button
         composeTestRule.onNodeWithTag("fullscreen_toggle_button").performClick()
         composeTestRule.mainClock.advanceTimeBy(100L)
         composeTestRule.waitForIdle()
-        composeTestRule.onNodeWithTag("fullscreen_exit_fab").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("console_stage_canvas").assertIsDisplayed()
+        composeTestRule.onAllNodesWithTag("connect_button").assertCountEquals(0)
+        composeTestRule.onAllNodesWithTag("fullscreen_exit_fab").assertCountEquals(0)
     }
 }

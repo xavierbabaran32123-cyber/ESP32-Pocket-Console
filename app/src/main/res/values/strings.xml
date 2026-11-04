@@ -12,7 +12,6 @@
     <string name="cd_sound_on">Mute game sound</string>
     <string name="cd_sound_off">Unmute game sound</string>
     <string name="cd_fullscreen_enter">Enter full screen</string>
-    <string name="cd_fullscreen_exit">Exit full screen</string>
     <string name="hint_ble_connected">Play with the joystick and buttons on the ESP32 device.</string>
     <string name="hint_ble_idle">Tap Connect to pair with your MaskMaze ESP32 console over Bluetooth LE.</string>
     <string name="hint_ble_unavailable">Bluetooth LE is not available on this device.</string>

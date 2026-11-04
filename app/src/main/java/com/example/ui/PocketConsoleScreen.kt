@@ -13,6 +13,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -38,7 +39,6 @@ import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.BluetoothConnected
 import androidx.compose.material.icons.filled.Fullscreen
-import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalIconButton
@@ -62,6 +62,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -166,30 +167,12 @@ fun PocketConsoleScreen(
         val useSideRail = !uiState.isFullscreen && isLandscape && maxHeight < 520.dp
 
         if (uiState.isFullscreen) {
-            Box(modifier = Modifier.fillMaxSize()) {
-                ConsoleViewportStage(
-                    renderer = renderer,
-                    modifier = Modifier.fillMaxSize()
-                )
-                FilledTonalIconButton(
-                    onClick = viewModel::exitFullscreen,
-                    colors = IconButtonDefaults.filledTonalIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.78f),
-                        contentColor = MaterialTheme.colorScheme.onSurface
-                    ),
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .windowInsetsPadding(WindowInsets.safeDrawing)
-                        .padding(10.dp)
-                        .size(48.dp)
-                        .testTag("fullscreen_exit_fab")
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.FullscreenExit,
-                        contentDescription = stringResource(R.string.cd_fullscreen_exit)
-                    )
-                }
-            }
+            ConsoleViewportStage(
+                renderer = renderer,
+                isFullscreen = true,
+                onExitFullscreen = viewModel::exitFullscreen,
+                modifier = Modifier.fillMaxSize()
+            )
         } else if (useSideRail) {
             Row(
                 modifier = Modifier
@@ -244,6 +227,8 @@ fun PocketConsoleScreen(
 @Composable
 private fun ConsoleViewportStage(
     renderer: ConsoleCanvasRenderer,
+    isFullscreen: Boolean = false,
+    onExitFullscreen: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var frameNowMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -263,6 +248,13 @@ private fun ConsoleViewportStage(
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
+                .pointerInput(isFullscreen) {
+                    if (isFullscreen) {
+                        detectTapGestures(
+                            onDoubleTap = { onExitFullscreen() }
+                        )
+                    }
+                }
                 .testTag("console_stage_canvas")
         ) {
             val tickNow = frameNowMs
