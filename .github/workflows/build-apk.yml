@@ -1,0 +1,138 @@
+name: Build & Release Android APK
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    tags:
+      - "v*"
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-apk:
+    name: Build Signed APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept Android SDK licenses
+        run: |
+          if [ -x "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" ]; then
+            yes | "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          else
+            yes | sdkmanager --licenses > /dev/null || true
+          fi
+
+      - name: Read Gradle version from wrapper properties
+        id: gradle_ver
+        run: |
+          VER=$(sed -n 's/.*gradle-\([0-9.]*\)-.*\.zip/\1/p' gradle/wrapper/gradle-wrapper.properties)
+          echo "version=${VER:-9.3.1}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: ${{ steps.gradle_ver.outputs.version }}
+          validate-wrappers: false
+
+      - name: Prepare Android signing keystore
+        run: |
+          if [ -f debug.keystore.base64 ]; then
+            tr -d '[:space:]' < debug.keystore.base64 | base64 -d > debug.keystore
+          elif [ ! -f debug.keystore ]; then
+            keytool -genkeypair -v \
+              -keystore debug.keystore \
+              -storepass android \
+              -alias androiddebugkey \
+              -keypass android \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+          fi
+
+      - name: Build installable APK
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          mkdir -p dist
+          if [ -n "${RELEASE_KEYSTORE_BASE64}" ] && [ -n "${STORE_PASSWORD}" ] && [ -n "${KEY_PASSWORD}" ]; then
+            echo "${RELEASE_KEYSTORE_BASE64}" | tr -d '[:space:]' | base64 -d > my-upload-key.jks
+            gradle :app:assembleRelease --no-daemon
+            cp app/build/outputs/apk/release/app-release.apk dist/MaskMaze.apk
+          else
+            gradle :app:assembleDebug --no-daemon
+            cp app/build/outputs/apk/debug/app-debug.apk dist/MaskMaze.apk
+          fi
+          (cd dist && sha256sum MaskMaze.apk > MaskMaze.apk.sha256)
+
+      - name: Upload APK workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MaskMaze-APK
+          path: |
+            dist/MaskMaze.apk
+            dist/MaskMaze.apk.sha256
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Write APK download summary
+        run: |
+          APK_SIZE=$(du -h dist/MaskMaze.apk | cut -f1)
+          APK_SHA=$(cut -d' ' -f1 dist/MaskMaze.apk.sha256)
+          {
+            echo "## Mask Maze Android APK Ready"
+            echo ""
+            echo "- **File:** \`MaskMaze.apk\` (${APK_SIZE})"
+            echo "- **SHA-256:** \`${APK_SHA}\`"
+            echo "- **Direct Latest Release Link:** [Download MaskMaze.apk](https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/MaskMaze.apk)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Update rolling latest tag on default branch push
+        if: github.event_name != 'pull_request' && !startsWith(github.ref, 'refs/tags/')
+        run: |
+          git tag -f latest "${GITHUB_SHA}"
+          git push -f origin refs/tags/latest
+
+      - name: Publish APK to GitHub Releases
+        if: github.event_name != 'pull_request'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'latest' }}
+          name: ${{ startsWith(github.ref, 'refs/tags/') && format('Mask Maze {0}', github.ref_name) || 'Mask Maze — Latest APK' }}
+          make_latest: true
+          files: |
+            dist/MaskMaze.apk
+            dist/MaskMaze.apk.sha256
+          body: |
+            ### Download & Install on Android
+            - **Direct APK Download:** [**Download `MaskMaze.apk`**](https://github.com/${{ github.repository }}/releases/latest/download/MaskMaze.apk)
+            - **Minimum Android Version:** Android 7.0+ (API 24)
+            - **Commit:** `${{ github.sha }}`
+
+            > On your Android device, open the downloaded `MaskMaze.apk` and allow installation from your browser or file manager if prompted.
