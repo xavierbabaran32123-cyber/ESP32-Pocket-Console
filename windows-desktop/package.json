@@ -1,0 +1,43 @@
+{
+  "name": "mask-maze-pocket-console",
+  "productName": "Mask Maze",
+  "version": "1.0.0",
+  "description": "Mask Maze — Tomb of Mask ESP32 Pocket Console Companion for Windows",
+  "author": "Mask Maze",
+  "license": "MIT",
+  "main": "main.js",
+  "scripts": {
+    "prepare-assets": "node scripts/prepare-assets.js",
+    "start": "node scripts/prepare-assets.js && electron .",
+    "dist:win": "node scripts/prepare-assets.js && electron-builder --win portable --x64 --publish never"
+  },
+  "build": {
+    "appId": "com.aistudio.maskmaze.desktop",
+    "productName": "Mask Maze",
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "icon.png",
+      "package.json"
+    ],
+    "win": {
+      "icon": "icon.png",
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "portable": {
+      "artifactName": "MaskMaze-Windows.exe"
+    }
+  },
+  "devDependencies": {
+    "electron": "^45.2.1",
+    "electron-builder": "^26.18.0"
+  }
+}

@@ -43,6 +43,9 @@ object QrCodeEncoder {
     const val APK_DOWNLOAD_URL =
         "https://github.com/xavierbabaran32123-cyber/ESP32-Pocket-Console/releases/latest/download/MaskMaze.apk"
 
+    const val WINDOWS_DOWNLOAD_URL =
+        "https://github.com/xavierbabaran32123-cyber/ESP32-Pocket-Console/releases/latest/download/MaskMaze-Windows.exe"
+
     private data class VersionSpec(
         val version: Int,
         val totalDataCodewords: Int,

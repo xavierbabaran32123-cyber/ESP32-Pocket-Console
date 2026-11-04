@@ -1,4 +1,4 @@
-name: Build & Release Android APK
+name: Build & Release Android & Windows
 
 on:
   push:
@@ -17,12 +17,12 @@ permissions:
   contents: write
 
 concurrency:
-  group: android-apk-${{ github.ref }}
+  group: release-builds-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   build-apk:
-    name: Build Signed APK
+    name: Build Android APK
     runs-on: ubuntu-24.04
 
     steps:
@@ -177,34 +177,126 @@ jobs:
             echo "- **Direct Latest Release Link:** [Download MaskMaze.apk](https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/MaskMaze.apk)"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Publish APK to GitHub Releases
-        if: github.event_name != 'pull_request'
+  build-windows:
+    name: Build Windows EXE
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          package-manager-cache: false
+
+      - name: Cache Electron binaries
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/AppData/Local/electron/Cache
+            ~/AppData/Local/electron-builder/Cache
+          key: ${{ runner.os }}-electron-${{ hashFiles('windows-desktop/package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-electron-
+
+      - name: Build Portable Windows EXE
+        shell: bash
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: |
+          set -euo pipefail
+          cd windows-desktop
+          npm install --no-audit --no-fund
+          npm run dist:win
+          test -s dist/MaskMaze-Windows.exe
+          mkdir -p ../dist-win
+          cp dist/MaskMaze-Windows.exe ../dist-win/MaskMaze-Windows.exe
+          (cd ../dist-win && sha256sum MaskMaze-Windows.exe > MaskMaze-Windows.exe.sha256)
+
+      - name: Upload Windows EXE workflow artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: MaskMaze-Windows
+          path: |
+            dist-win/MaskMaze-Windows.exe
+            dist-win/MaskMaze-Windows.exe.sha256
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Write Windows EXE download summary
+        shell: bash
+        run: |
+          WIN_SIZE=$(du -h dist-win/MaskMaze-Windows.exe | cut -f1)
+          WIN_SHA=$(cut -d' ' -f1 dist-win/MaskMaze-Windows.exe.sha256)
+          {
+            echo "## Mask Maze Windows Desktop App Ready"
+            echo ""
+            echo "- **File:** \`MaskMaze-Windows.exe\` (${WIN_SIZE})"
+            echo "- **SHA-256:** \`${WIN_SHA}\`"
+            echo "- **Direct Latest Release Link:** [Download MaskMaze-Windows.exe](https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/MaskMaze-Windows.exe)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  publish-release:
+    name: Publish GitHub Release
+    needs:
+      - build-apk
+      - build-windows
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Download Android APK artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: MaskMaze-APK
+          path: release-assets/android
+
+      - name: Download Windows EXE artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: MaskMaze-Windows
+          path: release-assets/windows
+
+      - name: Publish Android & Windows builds to GitHub Releases
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          APK_SIZE=$(du -h dist/MaskMaze.apk | cut -f1)
-          APK_SHA=$(cut -d' ' -f1 dist/MaskMaze.apk.sha256)
+          set -euo pipefail
+          test -s release-assets/android/MaskMaze.apk
+          test -s release-assets/windows/MaskMaze-Windows.exe
+
+          APK_SIZE=$(du -h release-assets/android/MaskMaze.apk | cut -f1)
+          APK_SHA=$(cut -d' ' -f1 release-assets/android/MaskMaze.apk.sha256)
+          WIN_SIZE=$(du -h release-assets/windows/MaskMaze-Windows.exe | cut -f1)
+          WIN_SHA=$(cut -d' ' -f1 release-assets/windows/MaskMaze-Windows.exe.sha256)
 
           cat <<EOF > "$RUNNER_TEMP/release-notes.md"
-          ### Download & Install on Android
-          <a href="https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/MaskMaze.apk">
-            <img src="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/docs/apk-download-qr.svg" alt="Scan QR code to download MaskMaze.apk" width="200" height="200" />
-          </a>
+          ### Download Mask Maze Companion App
 
-          - **Direct APK Download:** [**Download \`MaskMaze.apk\` (${APK_SIZE})**](https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/MaskMaze.apk)
-          - **SHA-256:** \`${APK_SHA}\`
-          - **Minimum Android Version:** Android 7.0+ (API 24)
+          | Android (7.0+ APK) | Windows 10/11 (64-bit Portable EXE) |
+          | :---: | :---: |
+          | <a href="https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/MaskMaze.apk"><img src="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/docs/apk-download-qr.svg" alt="Scan QR to download MaskMaze.apk" width="190" height="190" /></a> | <a href="https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/MaskMaze-Windows.exe"><img src="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/docs/windows-download-qr.svg" alt="Scan QR to download MaskMaze-Windows.exe" width="190" height="190" /></a> |
+          | [**Download \`MaskMaze.apk\` (${APK_SIZE})**](https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/MaskMaze.apk) | [**Download \`MaskMaze-Windows.exe\` (${WIN_SIZE})**](https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/MaskMaze-Windows.exe) |
+
+          #### Checksums (SHA-256)
+          - **\`MaskMaze.apk\`:** \`${APK_SHA}\`
+          - **\`MaskMaze-Windows.exe\`:** \`${WIN_SHA}\`
           - **Commit:** \`${GITHUB_SHA}\`
 
-          > Scan the QR code above with your Android camera or tap the direct link, then open \`MaskMaze.apk\` to install.
+          > **Android:** Scan the Android QR code or tap the APK link to install on Android 7.0+.<br/>
+          > **Windows:** Download and run \`MaskMaze-Windows.exe\` directly on Windows 10/11 (no installer required). Enable Windows Bluetooth and click **Connect** to pair with your ESP32 Pocket Console.
           EOF
+
+          sed -i 's/^          //' "$RUNNER_TEMP/release-notes.md"
 
           if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
             TAG="${GITHUB_REF_NAME}"
             TITLE="Mask Maze ${TAG}"
           else
             TAG="latest"
-            TITLE="Mask Maze — Latest APK"
+            TITLE="Mask Maze — Latest Android & Windows Release"
             if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/latest" >/dev/null 2>&1; then
               gh api -X PATCH "repos/${GITHUB_REPOSITORY}/git/refs/tags/latest" \
                 -f sha="${GITHUB_SHA}" \
@@ -216,8 +308,15 @@ jobs:
             fi
           fi
 
+          ASSETS=(
+            release-assets/android/MaskMaze.apk
+            release-assets/android/MaskMaze.apk.sha256
+            release-assets/windows/MaskMaze-Windows.exe
+            release-assets/windows/MaskMaze-Windows.exe.sha256
+          )
+
           if gh release view "${TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            gh release upload "${TAG}" dist/MaskMaze.apk dist/MaskMaze.apk.sha256 \
+            gh release upload "${TAG}" "${ASSETS[@]}" \
               --repo "${GITHUB_REPOSITORY}" \
               --clobber
             gh release edit "${TAG}" \
@@ -226,7 +325,7 @@ jobs:
               --notes-file "$RUNNER_TEMP/release-notes.md" \
               --latest
           else
-            gh release create "${TAG}" dist/MaskMaze.apk dist/MaskMaze.apk.sha256 \
+            gh release create "${TAG}" "${ASSETS[@]}" \
               --repo "${GITHUB_REPOSITORY}" \
               --target "${GITHUB_SHA}" \
               --title "${TITLE}" \

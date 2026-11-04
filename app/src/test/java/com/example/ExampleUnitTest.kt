@@ -249,4 +249,119 @@ class ExampleUnitTest {
         assertTrue(svg.startsWith("<svg"))
         assertTrue(svg.contains("viewBox=\"0 0 45 45\""))
     }
+
+    @Test
+    fun qrCodeEncoderGeneratesValidVersion6MatrixForWindowsDownloadUrl() {
+        val qr = QrCodeEncoder.encodeByteMode(QrCodeEncoder.WINDOWS_DOWNLOAD_URL)
+        // 110-byte URL fits in Version 6-L (41 x 41)
+        assertEquals(41, qr.size)
+        assertTrue(qr.get(8, 33)) // Dark module at (8, 4*6 + 9)
+
+        var fmt1 = 0
+        for (i in 0..5) if (qr.get(8, i)) fmt1 = fmt1 or (1 shl i)
+        if (qr.get(8, 7)) fmt1 = fmt1 or (1 shl 6)
+        if (qr.get(8, 8)) fmt1 = fmt1 or (1 shl 7)
+        if (qr.get(7, 8)) fmt1 = fmt1 or (1 shl 8)
+        for (i in 9..14) if (qr.get(14 - i, 8)) fmt1 = fmt1 or (1 shl i)
+
+        var fmt2 = 0
+        for (i in 0..7) if (qr.get(40 - i, 8)) fmt2 = fmt2 or (1 shl i)
+        for (i in 8..14) if (qr.get(8, 41 - 15 + i)) fmt2 = fmt2 or (1 shl i)
+        assertEquals(fmt1, fmt2)
+
+        val unmaskedFmt = fmt1 xor 0x5412
+        val maskIndex = (unmaskedFmt ushr 10) and 0b111
+        assertEquals(0b01, (unmaskedFmt ushr 13) and 0b11)
+
+        val isFunc = Array(41) { BooleanArray(41) }
+        for (i in 0 until 41) {
+            isFunc[i][6] = true
+            isFunc[6][i] = true
+        }
+        for (y in 0..8) for (x in 0..8) isFunc[y][x] = true
+        for (y in 0..8) for (x in 33..40) isFunc[y][x] = true
+        for (y in 33..40) for (x in 0..8) isFunc[y][x] = true
+        for (dy in -2..2) for (dx in -2..2) {
+            isFunc[34 + dy][34 + dx] = true
+            val dist = maxOf(abs(dx), abs(dy))
+            assertEquals(dist != 1, qr.get(34 + dx, 34 + dy))
+        }
+
+        val bits = ArrayList<Int>(1383)
+        var right = 40
+        while (right >= 1) {
+            if (right == 6) right = 5
+            for (vert in 0 until 41) {
+                for (j in 0..1) {
+                    val x = right - j
+                    val upward = ((right + 1) and 2) == 0
+                    val y = if (upward) 40 - vert else vert
+                    if (!isFunc[y][x]) {
+                        val rawBit = qr.get(x, y) xor QrCodeEncoder.maskInvert(maskIndex, x, y)
+                        bits.add(if (rawBit) 1 else 0)
+                    }
+                }
+            }
+            right -= 2
+        }
+        assertEquals(1383, bits.size)
+
+        // Version 6-L has 172 codewords = 2 interleaved blocks of (68 data + 18 EC)
+        val rawCodewords = IntArray(172)
+        for (c in 0 until 172) {
+            var v = 0
+            for (b in 0..7) v = (v shl 1) or bits[c * 8 + b]
+            rawCodewords[c] = v
+        }
+
+        val block0 = IntArray(86)
+        val block1 = IntArray(86)
+        for (i in 0 until 68) {
+            block0[i] = rawCodewords[i * 2]
+            block1[i] = rawCodewords[i * 2 + 1]
+        }
+        for (i in 0 until 18) {
+            block0[68 + i] = rawCodewords[136 + i * 2]
+            block1[68 + i] = rawCodewords[136 + i * 2 + 1]
+        }
+
+        for ((blkIdx, blk) in arrayOf(block0, block1).withIndex()) {
+            var alphaI = 1
+            for (s in 0 until 18) {
+                var syn = 0
+                for (cw in blk) {
+                    syn = QrCodeEncoder.gfMultiply(syn, alphaI) xor cw
+                }
+                assertEquals("Block $blkIdx RS syndrome $s must be 0", 0, syn)
+                alphaI = QrCodeEncoder.gfMultiply(alphaI, 0x02)
+            }
+        }
+
+        // De-interleave data bits to decode Byte-mode payload
+        val dataBits = ArrayList<Int>(136 * 8)
+        for (i in 0 until 68) {
+            for (b in 7 downTo 0) dataBits.add((block0[i] ushr b) and 1)
+        }
+        for (i in 0 until 68) {
+            for (b in 7 downTo 0) dataBits.add((block1[i] ushr b) and 1)
+        }
+
+        val mode = (dataBits[0] shl 3) or (dataBits[1] shl 2) or (dataBits[2] shl 1) or dataBits[3]
+        assertEquals(0b0100, mode)
+        var len = 0
+        for (b in 4 until 12) len = (len shl 1) or dataBits[b]
+        assertEquals(110, len)
+
+        val decodedBytes = ByteArray(len)
+        for (idx in 0 until len) {
+            var ch = 0
+            for (b in 0..7) ch = (ch shl 1) or dataBits[12 + idx * 8 + b]
+            decodedBytes[idx] = ch.toByte()
+        }
+        assertEquals(QrCodeEncoder.WINDOWS_DOWNLOAD_URL, decodedBytes.decodeToString())
+
+        val svg = qr.toSvg(quietZone = 4, modulePx = 6)
+        assertTrue(svg.startsWith("<svg"))
+        assertTrue(svg.contains("viewBox=\"0 0 49 49\""))
+    }
 }

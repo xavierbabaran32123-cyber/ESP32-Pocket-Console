@@ -12,10 +12,13 @@
     <string name="cd_sound_on">Mute game sound</string>
     <string name="cd_sound_off">Unmute game sound</string>
     <string name="cd_fullscreen_enter">Enter full screen</string>
-    <string name="cd_qr_download">Show APK download QR code</string>
-    <string name="cd_qr_code_image">QR code to download MaskMaze.apk</string>
-    <string name="qr_dialog_title">Download APK</string>
+    <string name="cd_qr_download">Show app download QR codes</string>
+    <string name="cd_qr_code_image">QR code to download Mask Maze</string>
+    <string name="qr_dialog_title">Download App</string>
+    <string name="qr_platform_android">Android APK</string>
+    <string name="qr_platform_windows">Windows EXE</string>
     <string name="qr_dialog_subtitle">Scan with your phone camera to download the latest MaskMaze.apk</string>
+    <string name="qr_dialog_subtitle_windows">Scan or copy link to download MaskMaze-Windows.exe for Windows 10/11 (64-bit)</string>
     <string name="qr_copy_link">Copy Link</string>
     <string name="qr_copied">Copied</string>
     <string name="qr_open_link">Download</string>
