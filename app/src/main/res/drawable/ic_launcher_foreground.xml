@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Outer shadow of pixel mask inside 66dp safe zone -->
+    <path
+        android:fillColor="#961E3C"
+        android:pathData="M38,29h32v6h6v18h-4v12h-6v8h-6v8h-8v-6h-4v6h-8v-8h-6v-8h-6v-12h-4v-18h6z" />
+    <!-- Golden Tomb Mask silhouette -->
+    <path
+        android:fillColor="#FFF000"
+        android:pathData="M36,27h36v6h6v18h-4v12h-6v8h-6v8h-8v-6h-4v6h-8v-8h-6v-8h-6v-12h-4v-18h6z" />
+    <!-- Crown crest detail -->
+    <path
+        android:fillColor="#F0BE3C"
+        android:pathData="M42,27h6v6h-6zM52,27h4v8h-4zM60,27h6v6h-6z" />
+    <!-- Neon magenta forehead gem -->
+    <path
+        android:fillColor="#FF4FB8"
+        android:pathData="M51,35h6v6h-6z" />
+    <!-- Cyan glowing temple runes -->
+    <path
+        android:fillColor="#28E6DC"
+        android:pathData="M34,37h5v4h-5zM69,37h5v4h-5z" />
+    <!-- Bold dark eyes & mouth cutouts -->
+    <path
+        android:fillColor="#0B0B1A"
+        android:pathData="M39,45h10v8h-10zM59,45h10v8h-10zM45,61h18v5h-18z" />
+    <!-- Bright eye glints -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M41,47h4v4h-4zM61,47h4v4h-4z" />
+</vector>

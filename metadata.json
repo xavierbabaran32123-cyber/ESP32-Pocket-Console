@@ -1,0 +1,6 @@
+{
+  "name": "Mask Maze",
+  "description": "Live Bluetooth LE companion display, chiptune audio synthesizer, and playable pocket console for Tomb of Mask ESP32.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
