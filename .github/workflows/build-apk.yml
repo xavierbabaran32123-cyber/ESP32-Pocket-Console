@@ -23,43 +23,103 @@ concurrency:
 jobs:
   build-apk:
     name: Build Signed APK
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "21"
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Cache Gradle distribution and dependencies
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.gradle-dist
+            ~/.gradle/caches
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', '**/libs.versions.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
 
-      - name: Accept Android SDK licenses
+      - name: Install Gradle 9.3.1
         run: |
-          if [ -x "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" ]; then
-            yes | "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          VER=$(sed -n 's/.*gradle-\([0-9.]*\)-.*\.zip/\1/p' gradle/wrapper/gradle-wrapper.properties | tr -d '[:space:]')
+          VER="${VER:-9.3.1}"
+          DIST_ROOT="$HOME/.gradle-dist"
+          mkdir -p "$DIST_ROOT"
+          if [ ! -x "${DIST_ROOT}/gradle-${VER}/bin/gradle" ]; then
+            curl -fsSL --retry 3 "https://services.gradle.org/distributions/gradle-${VER}-bin.zip" -o "${DIST_ROOT}/gradle.zip"
+            unzip -q -o "${DIST_ROOT}/gradle.zip" -d "$DIST_ROOT"
+            rm -f "${DIST_ROOT}/gradle.zip"
+          fi
+          echo "${DIST_ROOT}/gradle-${VER}/bin" >> "$GITHUB_PATH"
+          "${DIST_ROOT}/gradle-${VER}/bin/gradle" --version
+
+      - name: Configure Android SDK (API 36.1 & Build-Tools 36.0.0)
+        run: |
+          SDK_DIR="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          sudo mkdir -p "$SDK_DIR"
+          sudo chown -R "$(id -u):$(id -g)" "$SDK_DIR"
+
+          run_sdkmanager() {
+            set +e
+            set +o pipefail
+            yes | "$@"
+            local rc=$?
+            set -o pipefail
+            set -e
+            return $rc
+          }
+
+          SDKMANAGER=""
+          if [ -x "$SDK_DIR/cmdline-tools/latest/bin/sdkmanager" ]; then
+            SDKMANAGER="$SDK_DIR/cmdline-tools/latest/bin/sdkmanager"
           else
-            yes | sdkmanager --licenses > /dev/null || true
+            FOUND=$(find "$SDK_DIR/cmdline-tools" -maxdepth 3 -type f -name sdkmanager 2>/dev/null | head -n 1 || true)
+            if [ -n "$FOUND" ] && [ -x "$FOUND" ]; then
+              SDKMANAGER="$FOUND"
+            fi
           fi
 
-      - name: Read Gradle version from wrapper properties
-        id: gradle_ver
-        run: |
-          VER=$(sed -n 's/.*gradle-\([0-9.]*\)-.*\.zip/\1/p' gradle/wrapper/gradle-wrapper.properties)
-          echo "version=${VER:-9.3.1}" >> "$GITHUB_OUTPUT"
+          if [ -z "$SDKMANAGER" ]; then
+            mkdir -p "$SDK_DIR/cmdline-tools"
+            curl -fsSL --retry 3 "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip" -o "$RUNNER_TEMP/cmdline-tools.zip"
+            unzip -q -o "$RUNNER_TEMP/cmdline-tools.zip" -d "$RUNNER_TEMP/cmdline-extract"
+            rm -rf "$SDK_DIR/cmdline-tools/latest"
+            mv "$RUNNER_TEMP/cmdline-extract/cmdline-tools" "$SDK_DIR/cmdline-tools/latest"
+            SDKMANAGER="$SDK_DIR/cmdline-tools/latest/bin/sdkmanager"
+          fi
 
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: ${{ steps.gradle_ver.outputs.version }}
-          validate-wrappers: false
+          run_sdkmanager "$SDKMANAGER" --sdk_root="$SDK_DIR" --licenses > /dev/null
+          run_sdkmanager "$SDKMANAGER" --sdk_root="$SDK_DIR" --install "cmdline-tools;latest"
 
-      - name: Prepare Android signing keystore
+          if [ -d "$SDK_DIR/cmdline-tools/latest-2" ]; then
+            rm -rf "$SDK_DIR/cmdline-tools/latest"
+            mv "$SDK_DIR/cmdline-tools/latest-2" "$SDK_DIR/cmdline-tools/latest"
+          fi
+
+          SDKMANAGER="$SDK_DIR/cmdline-tools/latest/bin/sdkmanager"
+          run_sdkmanager "$SDKMANAGER" --sdk_root="$SDK_DIR" --licenses > /dev/null
+          run_sdkmanager "$SDKMANAGER" --sdk_root="$SDK_DIR" --install \
+            "platform-tools" \
+            "build-tools;36.0.0" \
+            "platforms;android-36.1"
+
+          echo "ANDROID_HOME=$SDK_DIR" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK_DIR" >> "$GITHUB_ENV"
+          echo "$SDK_DIR/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          echo "$SDK_DIR/platform-tools" >> "$GITHUB_PATH"
+
+      - name: Prepare environment & Android signing keystore
         run: |
+          if [ ! -f .env ] && [ -f .env.example ]; then
+            cp .env.example .env
+          fi
+
           if [ -f debug.keystore.base64 ]; then
             tr -d '[:space:]' < debug.keystore.base64 | base64 -d > debug.keystore
           elif [ ! -f debug.keystore ]; then
@@ -73,8 +133,9 @@ jobs:
               -validity 10000 \
               -dname "CN=Android Debug,O=Android,C=US"
           fi
+          test -s debug.keystore
 
-      - name: Build installable APK
+      - name: Build signed APK
         env:
           RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
@@ -82,17 +143,20 @@ jobs:
         run: |
           mkdir -p dist
           if [ -n "${RELEASE_KEYSTORE_BASE64}" ] && [ -n "${STORE_PASSWORD}" ] && [ -n "${KEY_PASSWORD}" ]; then
-            echo "${RELEASE_KEYSTORE_BASE64}" | tr -d '[:space:]' | base64 -d > my-upload-key.jks
-            gradle :app:assembleRelease --no-daemon
-            cp app/build/outputs/apk/release/app-release.apk dist/MaskMaze.apk
+            printf '%s' "${RELEASE_KEYSTORE_BASE64}" | tr -d '[:space:]' | base64 -d > my-upload-key.jks
+            gradle :app:assembleRelease --no-daemon --no-configuration-cache --stacktrace
+            APK_SRC=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
+            cp "$APK_SRC" dist/MaskMaze.apk
           else
-            gradle :app:assembleDebug --no-daemon
+            gradle :app:assembleDebug --no-daemon --no-configuration-cache --stacktrace
             cp app/build/outputs/apk/debug/app-debug.apk dist/MaskMaze.apk
           fi
+          test -s dist/MaskMaze.apk
           (cd dist && sha256sum MaskMaze.apk > MaskMaze.apk.sha256)
+          rm -f ~/.gradle/caches/modules-2/modules-2.lock ~/.gradle/caches/*/plugin-resolution/*.lock || true
 
       - name: Upload APK workflow artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: MaskMaze-APK
           path: |
@@ -113,26 +177,55 @@ jobs:
             echo "- **Direct Latest Release Link:** [Download MaskMaze.apk](https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/MaskMaze.apk)"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Update rolling latest tag on default branch push
-        if: github.event_name != 'pull_request' && !startsWith(github.ref, 'refs/tags/')
-        run: |
-          git tag -f latest "${GITHUB_SHA}"
-          git push -f origin refs/tags/latest
-
       - name: Publish APK to GitHub Releases
         if: github.event_name != 'pull_request'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'latest' }}
-          name: ${{ startsWith(github.ref, 'refs/tags/') && format('Mask Maze {0}', github.ref_name) || 'Mask Maze — Latest APK' }}
-          make_latest: true
-          files: |
-            dist/MaskMaze.apk
-            dist/MaskMaze.apk.sha256
-          body: |
-            ### Download & Install on Android
-            - **Direct APK Download:** [**Download `MaskMaze.apk`**](https://github.com/${{ github.repository }}/releases/latest/download/MaskMaze.apk)
-            - **Minimum Android Version:** Android 7.0+ (API 24)
-            - **Commit:** `${{ github.sha }}`
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          APK_SIZE=$(du -h dist/MaskMaze.apk | cut -f1)
+          APK_SHA=$(cut -d' ' -f1 dist/MaskMaze.apk.sha256)
 
-            > On your Android device, open the downloaded `MaskMaze.apk` and allow installation from your browser or file manager if prompted.
+          cat <<EOF > "$RUNNER_TEMP/release-notes.md"
+          ### Download & Install on Android
+          - **Direct APK Download:** [**Download \`MaskMaze.apk\` (${APK_SIZE})**](https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/MaskMaze.apk)
+          - **SHA-256:** \`${APK_SHA}\`
+          - **Minimum Android Version:** Android 7.0+ (API 24)
+          - **Commit:** \`${GITHUB_SHA}\`
+
+          > On your Android phone or tablet, open the downloaded \`MaskMaze.apk\` and allow installation from your browser or file manager if prompted.
+          EOF
+
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            TAG="${GITHUB_REF_NAME}"
+            TITLE="Mask Maze ${TAG}"
+          else
+            TAG="latest"
+            TITLE="Mask Maze — Latest APK"
+            if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/latest" >/dev/null 2>&1; then
+              gh api -X PATCH "repos/${GITHUB_REPOSITORY}/git/refs/tags/latest" \
+                -f sha="${GITHUB_SHA}" \
+                -F force=true >/dev/null
+            else
+              gh api -X POST "repos/${GITHUB_REPOSITORY}/git/refs" \
+                -f ref="refs/tags/latest" \
+                -f sha="${GITHUB_SHA}" >/dev/null
+            fi
+          fi
+
+          if gh release view "${TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload "${TAG}" dist/MaskMaze.apk dist/MaskMaze.apk.sha256 \
+              --repo "${GITHUB_REPOSITORY}" \
+              --clobber
+            gh release edit "${TAG}" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --title "${TITLE}" \
+              --notes-file "$RUNNER_TEMP/release-notes.md" \
+              --latest
+          else
+            gh release create "${TAG}" dist/MaskMaze.apk dist/MaskMaze.apk.sha256 \
+              --repo "${GITHUB_REPOSITORY}" \
+              --target "${GITHUB_SHA}" \
+              --title "${TITLE}" \
+              --notes-file "$RUNNER_TEMP/release-notes.md" \
+              --latest
+          fi

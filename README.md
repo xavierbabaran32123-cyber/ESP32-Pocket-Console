@@ -1,27 +1,24 @@
 # Mask Maze — Tomb of Mask Pocket Console (Android)
 
+[![Download APK](https://img.shields.io/badge/Download_APK-MaskMaze.apk-00E676?style=for-the-badge&logo=android&logoColor=black)](https://github.com/xavierbabaran32123-cyber/ESP32-Pocket-Console/releases/latest/download/MaskMaze.apk)
+[![Build & Release Android APK](https://github.com/xavierbabaran32123-cyber/ESP32-Pocket-Console/actions/workflows/build-apk.yml/badge.svg)](https://github.com/xavierbabaran32123-cyber/ESP32-Pocket-Console/actions/workflows/build-apk.yml)
+
 Native Android companion display, real-time chiptune audio synthesizer, and standalone playable Pocket Console for **Tomb of Mask ESP32**.
 
 ---
 
-## Download APK
+## Download & Install APK
 
-Every push to `main` / `master` (or any `v*` version tag) automatically builds and signs an installable **`MaskMaze.apk`** via GitHub Actions and publishes it to **GitHub Releases**.
+Every push to `main` / `master` (or any `v*` version tag) automatically builds and signs **`MaskMaze.apk`** via GitHub Actions and publishes it to **GitHub Releases**.
 
-### Option 1 — GitHub Releases (Recommended)
-1. Open the **Releases** section on the right sidebar of this GitHub repository.
-2. Select **Mask Maze — Latest APK** (or the newest version tag).
-3. Under **Assets**, tap **`MaskMaze.apk`** to download and install on any Android 7.0+ (API 24+) device.
+### Direct One-Click Download
+- **[Download Latest `MaskMaze.apk`](https://github.com/xavierbabaran32123-cyber/ESP32-Pocket-Console/releases/latest/download/MaskMaze.apk)**
+- **[View All GitHub Releases](https://github.com/xavierbabaran32123-cyber/ESP32-Pocket-Console/releases)**
 
-Once pushed to GitHub, your permanent direct-download URL is:
-```text
-https://github.com/<your-username>/<your-repo>/releases/latest/download/MaskMaze.apk
-```
-
-### Option 2 — GitHub Actions Build Artifacts
-1. Open the **Actions** tab in this repository.
-2. Select **Build & Release Android APK** and open the latest green workflow run.
-3. Scroll to **Artifacts** and download **`MaskMaze-APK`**.
+### Alternative — GitHub Actions Build Artifacts
+1. Open the **[Actions](https://github.com/xavierbabaran32123-cyber/ESP32-Pocket-Console/actions/workflows/build-apk.yml)** tab in this repository.
+2. Select the latest green **Build & Release Android APK** run.
+3. Scroll down to **Artifacts** and download **`MaskMaze-APK`**.
 
 ---
 
@@ -39,24 +36,25 @@ https://github.com/<your-username>/<your-repo>/releases/latest/download/MaskMaze
 - **22,050 Hz PCM Chiptune Audio Synthesizer**
   - Real-time pulse, triangle, sine, sawtooth, and filtered noise voices with 3 BGM tracks, 21 sound effects, BGM ducking, and rising-tide rumble.
 - **Play Local Mode**
-  - Play all 45 stages, Endless mode, Masks shop, and all 3 Arcade games directly on your Android phone or tablet using swipe gestures or the on-screen D-Pad + A/B/Pause controls.
+  - Play all 45 stages, Endless mode, Masks shop, and all 3 Arcade games directly on your Android phone or tablet (Android 7.0+ / API 24+) using swipe gestures or the on-screen D-Pad + A/B/Pause controls.
 
 ---
 
 ## Building Locally from Source
 
-1. Decode the included debug signing keystore in the project root:
+1. Ensure `.env` exists and decode the included debug signing keystore in the project root:
    ```bash
-   tr -d '[:space:]' < debug.keystore.base64 > debug_b64.tmp && base64 -d debug_b64.tmp > debug.keystore && rm debug_b64.tmp
+   [ -f .env ] || cp .env.example .env
+   tr -d '[:space:]' < debug.keystore.base64 | base64 -d > debug.keystore
    ```
-2. Build the debug APK with Gradle `9.3.1` (JDK 21):
+2. Build the signed debug APK with Gradle `9.3.1` (JDK 21):
    ```bash
    gradle :app:assembleDebug
    ```
    The signed APK will be generated at `app/build/outputs/apk/debug/app-debug.apk`.
 
 ### Optional Release Keystore Secrets (GitHub Actions)
-By default, `.github/workflows/build-apk.yml` signs `MaskMaze.apk` so it works out of the box with zero configuration. To sign release builds with your own upload keystore on GitHub, add these repository secrets under **Settings → Secrets and variables → Actions**:
+By default, `.github/workflows/build-apk.yml` signs `MaskMaze.apk` automatically so zero setup is required. To sign release builds with your own upload keystore on GitHub, add these repository secrets under **Settings → Secrets and variables → Actions**:
 - `RELEASE_KEYSTORE_BASE64` — Base64-encoded `.jks` keystore file
 - `STORE_PASSWORD` — Keystore password
 - `KEY_PASSWORD` — Key password (for alias `upload`)
